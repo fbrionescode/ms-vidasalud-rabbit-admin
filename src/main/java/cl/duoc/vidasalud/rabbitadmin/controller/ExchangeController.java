@@ -39,7 +39,7 @@ public class ExchangeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }
 
-    @DeleteMapping("/{nombre}")
+    @DeleteMapping("/{nombre:.+}")
     public ResponseEntity<Void> eliminarExchange(@PathVariable String nombre) {
         servicio.eliminarExchange(nombre);
         return ResponseEntity.noContent().build();

@@ -36,7 +36,7 @@ public class ColaController {
         return ResponseEntity.ok(servicio.listarColas());
     }
 
-    @GetMapping("/{nombre}")
+    @GetMapping("/{nombre:.+}")
     public ResponseEntity<ColaResponse> obtenerCola(@PathVariable String nombre) {
         return ResponseEntity.ok(servicio.obtenerCola(nombre));
     }
@@ -47,7 +47,7 @@ public class ColaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(creada);
     }
 
-    @DeleteMapping("/{nombre}/mensajes")
+    @DeleteMapping("/{nombre:.+}/mensajes")
     public ResponseEntity<Map<String, Object>> purgarCola(@PathVariable String nombre) {
         int cantidadPurgada = servicio.purgarCola(nombre);
         Map<String, Object> respuesta = new LinkedHashMap<>();
@@ -56,7 +56,7 @@ public class ColaController {
         return ResponseEntity.ok(respuesta);
     }
 
-    @DeleteMapping("/{nombre}")
+    @DeleteMapping("/{nombre:.+}")
     public ResponseEntity<Void> eliminarCola(@PathVariable String nombre) {
         servicio.eliminarCola(nombre);
         return ResponseEntity.noContent().build();
