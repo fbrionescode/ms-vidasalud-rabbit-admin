@@ -26,11 +26,14 @@ public class RabbitAdminConfig {
 
     /**
      * Cliente HTTP con autenticacion basica hacia el plugin Management de RabbitMQ (puerto 15672).
+     * La clave no tiene valor por defecto a proposito: si falta RABBITMQ_PASSWORD,
+     * el servicio no arranca y el problema se ve de inmediato, en vez de usar
+     * una clave versionada en el repositorio.
      */
     @Bean
     public RestClient clienteHttpRabbit(
-            @Value("${spring.rabbitmq.username:vidasalud}") String usuario,
-            @Value("${spring.rabbitmq.password:159}") String clave) {
+            @Value("${spring.rabbitmq.username}") String usuario,
+            @Value("${spring.rabbitmq.password}") String clave) {
         return RestClient.builder()
                 .defaultHeaders(encabezados -> encabezados.setBasicAuth(usuario, clave))
                 .build();

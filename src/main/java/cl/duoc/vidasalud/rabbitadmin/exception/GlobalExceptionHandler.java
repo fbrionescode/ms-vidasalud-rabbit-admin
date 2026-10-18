@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,14 +14,17 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Manejador centralizado de errores HTTP.
- * Garantiza respuestas claras con codigos semanticos (400, 403, 404, 409)
+ * Garantiza respuestas claras con codigos semanticos (400, 403, 404, 409, 502)
  * sin exponer trazas internas del servidor al cliente.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> manejarNoEncontrado(RecursoNoEncontradoException ex) {
@@ -64,6 +70,31 @@ public class GlobalExceptionHandler {
         cuerpo.put("campo", "tipo");
         cuerpo.put("mensaje", "Cuerpo JSON invalido o tipo de exchange no soportado (valores permitidos: direct, topic, fanout)");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(cuerpo);
+    }
+
+    /**
+     * Red de seguridad para fallas del broker por AMQP: nodo caido, canal cerrado,
+     * credenciales rechazadas. No es culpa del cliente, por eso 502 y no 500:
+     * este servicio funciona, el que fallo es RabbitMQ, que esta detras.
+     * El detalle tecnico queda en el log, no en la respuesta.
+     */
+    @ExceptionHandler(AmqpException.class)
+    public ResponseEntity<Map<String, Object>> manejarErrorAmqp(AmqpException ex) {
+        log.error("admin | error del broker por AMQP | {}", ex.getMessage());
+        return construirRespuesta(HttpStatus.BAD_GATEWAY,
+                "No fue posible completar la operacion en RabbitMQ. Intente nuevamente en unos momentos.");
+    }
+
+    /**
+     * Mismo criterio para la API HTTP de administracion (puerto 15672), que se usa
+     * para listar y para eliminar bindings. Los 404 esperados se traducen dentro
+     * del servicio; aqui solo llegan fallas reales de comunicacion.
+     */
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<Map<String, Object>> manejarErrorApiAdministracion(RestClientException ex) {
+        log.error("admin | error de la API de administracion de RabbitMQ | {}", ex.getMessage());
+        return construirRespuesta(HttpStatus.BAD_GATEWAY,
+                "No fue posible comunicarse con la API de administracion de RabbitMQ. Intente nuevamente en unos momentos.");
     }
 
     private Map<String, String> mapearErrorCampo(FieldError error) {

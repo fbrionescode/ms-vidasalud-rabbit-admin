@@ -106,6 +106,8 @@ public class RabbitAdminService {
     /**
      * Crea una cola nueva en el broker. Si se solicita conDlq, aprovisiona tambien
      * la cola dead-letter y su binding contra el exchange DLX del sistema.
+     * Todas las validaciones ocurren antes de declarar nada: si el exchange del
+     * binding inicial no existe, se responde 404 sin dejar colas huerfanas.
      */
     public ColaResponse crearCola(CrearColaRequest solicitud) {
         if (solicitud == null || solicitud.nombre() == null || solicitud.nombre().isBlank()) {
@@ -115,6 +117,13 @@ public class RabbitAdminService {
         String nombre = solicitud.nombre().trim();
         if (rabbitAdmin.getQueueInfo(nombre) != null) {
             throw new RecursoYaExisteException("La cola ya existe: " + nombre);
+        }
+
+        if (solicitud.tieneBindingInicial()) {
+            String exchangeInicial = solicitud.exchange().trim();
+            if (!existeExchangeEnBroker(exchangeInicial)) {
+                throw new RecursoNoEncontradoException("El exchange no existe: " + exchangeInicial);
+            }
         }
 
         if (solicitud.requiereDlq()) {
@@ -296,7 +305,9 @@ public class RabbitAdminService {
     }
 
     /**
-     * Declara un binding entre una cola existente y un exchange con la routing key indicada.
+     * Declara un binding entre una cola existente y un exchange existente con la routing key indicada.
+     * Se valida el exchange antes de declarar porque, si no existe, el broker cierra el canal
+     * con un error 404 de AMQP que de otro modo llegaria al cliente como un 500.
      */
     public Map<String, String> crearBinding(BindingRequest solicitud) {
         String cola = solicitud.cola().trim();
@@ -305,6 +316,9 @@ public class RabbitAdminService {
 
         if (rabbitAdmin.getQueueInfo(cola) == null) {
             throw new RecursoNoEncontradoException("La cola no existe: " + cola);
+        }
+        if (!existeExchangeEnBroker(exchange)) {
+            throw new RecursoNoEncontradoException("El exchange no existe: " + exchange);
         }
 
         Binding binding = new Binding(
